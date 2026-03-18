@@ -1,0 +1,89 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def compute_epsilon_gaussian(gaps, T, sigma=1.0, eta=0.5):
+    """
+    Computes the optimal practitioner precision (epsilon) and the 
+    statistical resolution threshold (Ct) for a Gaussian environment.
+    """
+    # Calculate the statistical confidence threshold Ct
+    Ct = np.sqrt((2 * sigma**2 * np.log(T)) / (eta * T))
+    
+    # Sort the sub-optimality gaps
+    sorted_gaps = np.sort(gaps)
+    
+    # Iteratively find the smallest epsilon that clears the indistinguishability band
+    epsilon = 0.0
+    for i in range(len(sorted_gaps) - 1):
+        if sorted_gaps[i+1] - epsilon <= Ct:
+            epsilon = sorted_gaps[i+1]
+        else:
+            break
+            
+    return epsilon, Ct, sorted_gaps
+
+# --- 1. Scenario Configuration ---
+# We use T=500 to ensure Ct is small enough to show a clear stop midway
+T_horizon = 500  
+bandit_gaps = np.array([0, 0.1, 0.15, 0.4, 0.8, 1.2]) 
+sigma_val = 1.0
+eta_val = 0.5
+
+eps_opt, Ct, sorted_gaps = compute_epsilon_gaussian(bandit_gaps, T_horizon, sigma_val, eta_val)
+
+# --- 2. Professional 1D Plot Setup ---
+# Clean style suited for academic papers
+plt.style.use('seaborn-v0_8-white')
+fig, ax = plt.subplots(figsize=(10, 4), dpi=120)
+
+# Draw the main 1D axis line (representing the sub-optimality space)
+ax.axhline(0, color='black', lw=1.2, zorder=1)
+
+# Plot the arms as points on the line
+ax.scatter(sorted_gaps, np.zeros_like(sorted_gaps), color='#1f77b4', 
+           s=100, zorder=4, label='Arm Gaps ($\Delta_a$)', edgecolors='white', lw=1.5)
+
+# --- 3. Fixing Label Overlap (Alternating Offset Strategy) ---
+for i, gap in enumerate(sorted_gaps):
+    # Alternate labels above (+1) and below (-1) the axis to prevent text overlap
+    direction = 1 if i % 2 == 0 else -1
+    y_text = 0.08 * direction
+    va_alignment = 'bottom' if direction == 1 else 'top'
+    
+    # Draw text with a connecting line pointing to the exact gap
+    ax.annotate(rf'$\Delta={gap}$', 
+                xy=(gap, 0), xycoords='data',
+                xytext=(gap, y_text), textcoords='data',
+                ha='center', va=va_alignment, fontsize=11, fontweight='bold',
+                arrowprops=dict(arrowstyle="-", color='gray', lw=1, alpha=0.7))
+
+# --- 4. Visualizing the Practitioner Regret Logic ---
+# Mark the Indistinguishability Band extending from the optimal epsilon
+ax.axvspan(eps_opt, eps_opt + Ct, color='red', alpha=0.15, zorder=2,
+           label=rf'Indistinguishability Band $(\epsilon, \epsilon + C_T]$')
+
+# Highlight the chosen optimal Epsilon
+ax.axvline(eps_opt, color='darkred', linestyle='--', lw=2, zorder=3,
+           label=rf'Optimal Precision $\epsilon = {eps_opt:.3f}$')
+
+# --- 5. Formatting and Cleanup ---
+# Hide the Y-axis completely as this is a 1D representation
+ax.get_yaxis().set_visible(False)
+ax.spines['left'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.spines['top'].set_visible(False)
+
+# Set limits and labels
+ax.set_xlim(-0.1, max(bandit_gaps) + 0.2)
+ax.set_ylim(-0.15, 0.15)
+ax.set_xlabel(r'Sub-optimality Gap $\Delta_a = \mu^* - \mu_a$', fontsize=12)
+
+# Dynamic title showing the parameters
+ax.set_title(r'Estimation of Practitioner Precision $\epsilon_{\eta}(T,\nu)$', fontsize=14, pad=15)
+ax.text(0.01, 0.95, rf'$T = {T_horizon}$ | $C_T = {Ct:.3f}$', transform=ax.transAxes, 
+        fontsize=11, bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray', boxstyle='round,pad=0.3'))
+
+ax.legend(loc='lower right', frameon=True, shadow=True, fontsize=10)
+plt.tight_layout()
+
+plt.show()
